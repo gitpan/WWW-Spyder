@@ -15,7 +15,7 @@ use POSIX; POSIX::nice(40);
 use Digest::MD5 "md5_base64";      # for making seen content key/index
 #---------------------------------------------------------------------
 use Carp;
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 our $VERBOSITY ||= 0;
 #=====================================================================
 #  METHODS
@@ -50,7 +50,7 @@ sub new {
 
 # install all our methods, either set once then get only or push/shift
 # array refs
-    for my $method ( %_methods ) {
+    for my $method ( keys %_methods ) {
         no strict "refs";
         no warnings;
         my $attribute = '_' . $method;
@@ -845,7 +845,7 @@ sub get_seed {
 
 WWW::Spyder
 
-=head1 VERSION 0.17
+=head1 VERSION 0.18
 
 =head1 SYNOPSIS
 

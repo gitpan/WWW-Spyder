@@ -1,4 +1,13 @@
 #--------------------------------------------------------------------
+0.18 -  20 July 2002 - Maintenance release
+Cleaned up the POD further. Changed a mistake that was *so* completely
+bone-head stupid, there should be a law passed against me (iterating
+on the new() auto-install methods hash without calling "keys").
+
+Got some nice feedback from a couple perl folks that I may implement
+in another version. Next real version is still a ways away.
+
+#--------------------------------------------------------------------
 0.17 - 11 March 2002
 Updated test.pl again to account for pages being crawled that aren't
 HTML. Added "Bugs" and "Readme" into the MANIFEST. Added the
