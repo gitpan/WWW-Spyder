@@ -1,0 +1,53 @@
+#--------------------------------------------------------------------
+BUG-->   new mysterious segfault that I can't fix...?
+http://ubl.artistdirect.com/music/artist/card/0,,479962,00.html
+Segmentation fault
+
+OPEN ISSUE
+
+Verbosity offers no clues. I haven't dug in to the site with telnet
+yet or examine the source.
+
+#--------------------------------------------------------------------
+BUG-->   file:///J%7C/InetPub/wwwroot/production.washtimes.com/staffdir.htm
+Can't locate object method "port" via package "URI::file" at
+  /Library/Perl/URI/WithBase.pm line 48.
+
+FIXED: in 0.17
+
+I added a line into the html_parser to prevent 'file://' URIs from
+being followed b/c the URI class can't seem to deal with them the way
+the spyder wants.
+
+#--------------------------------------------------------------------
+BUG--> selecting 'mailto:' URIs still
+GET'ing: mailto:info@littledogrecords.com
+Can't locate object method "host" via package "URI::mailto" at
+/Library/Perl/URI/WithBase.pm line 48.
+
+OPEN ISSUE
+
+Not sure how these are getting through.
+
+#--------------------------------------------------------------------
+BUG--> test.pl script not updated, crashing tests
+
+FIXED in 0.16
+FIXED further in 0.17
+
+#--------------------------------------------------------------------
+BUG--> continue block not resetting object correctly
+
+FIXED in 0.14
+
+Sorry, this was a bonehead mistake. crawl() was returning the page
+object out of the while() so the continue block was never being
+executed. Took it out and did the reset after making the ::Page and
+then returned the ::Page.
+
+#--------------------------------------------------------------------
+BUG-->> "Bus Error," .01 to Current Version
+
+Getting "Bus Error" on particular Domains. I found this discussed on
+mailing lists as a bug with LWP::UserAgent. In 1995! So I don't think
+it's the Spyder code, I think it's the UA.
