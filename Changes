@@ -1,4 +1,10 @@
 #--------------------------------------------------------------------
+0.19 - 22 December 2006
+Fixed typo (seed_url) in POD. Thanks to Begzudin Omerovic for catch.
+No longer uses POSIX::nice -- no other code changes.
+Linked a couple modules, added PREFER text.
+
+#--------------------------------------------------------------------
 0.18 -  20 July 2002 - Maintenance release
 Cleaned up the POD further. Changed a mistake that was *so* completely
 bone-head stupid, there should be a law passed against me (iterating

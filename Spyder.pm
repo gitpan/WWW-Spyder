@@ -10,12 +10,11 @@ use LWP::UserAgent;
 use HTTP::Cookies;
 use URI::URL;
 use HTML::Entities;
-use POSIX; POSIX::nice(40);
 #---------------------------------------------------------------------
 use Digest::MD5 "md5_base64";      # for making seen content key/index
 #---------------------------------------------------------------------
 use Carp;
-our $VERSION = '0.18';
+our $VERSION = '0.19';
 our $VERBOSITY ||= 0;
 #=====================================================================
 #  METHODS
@@ -50,7 +49,7 @@ sub new {
 
 # install all our methods, either set once then get only or push/shift
 # array refs
-    for my $method ( keys %_methods ) {
+    for my $method ( %_methods ) {
         no strict "refs";
         no warnings;
         my $attribute = '_' . $method;
@@ -843,9 +842,9 @@ sub get_seed {
 
 =head1 NAME
 
-WWW::Spyder
+WWW::Spyder - a simple non-persistent web crawler.
 
-=head1 VERSION 0.18
+=head1 VERSION 0.19
 
 =head1 SYNOPSIS
 
@@ -871,9 +870,9 @@ settings). Examples below.
 
 =item * $spyder->seed($url)
 
-Adds a URL (or URLs) to the top of the queues for crawl'ing. If the
+Adds a URL (or URLs) to the top of the queues for crawling. If the
 spyder is constructed with a single scalar argument, that is considered
-the seed_url.
+the seed.
 
 =item * $spyder->bell([bool])
 
@@ -1000,7 +999,7 @@ In the following code snippet:
     }
  }
 
-as long as unique URLs are being found in the pages crawl'd, the
+as long as unique URLs are being found in the pages crawled, the
 spyder will never stop.
 
 Each "crawl" returns a page object which gives the following methods
@@ -1097,7 +1096,7 @@ its conditions are met: 10mins pass or 300 pages are crawled.
  my $url = shift || die "Please give me a URL to start!\n";
  @ARGV or die "Please also give me a search term.\n";
  my $spyder = WWW::Spyder->new;
- $spyder->seed_url($url);
+ $spyder->seed($url);
  $spyder->terms(@ARGV);
 
  while ( my $page = $spyder->crawl ) {
@@ -1114,10 +1113,9 @@ If you are going to do anything important with it, implement some
 signal blocking to prevent accidental problems and tie your gathered
 information to a DB_File or some such.
 
-Right now the module loads C<POSIX::nice(40)>. It won't do that in
-future versions but you might consider doing it yourself. It should
-top the nice off at your system's max and prevent your spyder from
-interfering with your system.
+You might want to load C<POSIX::nice(40)>. It should top the nice off
+at your system's max and prevent your spyder from interfering with
+your system.
 
 You might want to to set $| = 1.
 
@@ -1145,7 +1143,7 @@ Add 2-4 sample scripts that are a bit more useful.
 There are many functions that should be under the programmer's control
 and not buried in the spyder. They will emerge soon. I'd like to put
 in hooks to allow the user to keep(), toss(), or exclude(), urls, link
-names, and domains, while crawl'ing.
+names, and domains, while crawling.
 
 Clean up some redundant, sloppy, and weird code. Probably change or
 remove the AUTOLOAD.
@@ -1244,9 +1242,9 @@ Perl.
 Most all y'all. Especially Lincoln Stein, Gisle Aas, The Conway,
 Raphael Manfredi, Gurusamy Sarathy, and plenty of others.
 
-=head1 COMPARE WITH
+=head1 COMPARE WITH (PROBABLY PREFER)
 
-WWW::Robot, LWP::UserAgent, WWW::SimpleRobot, WWW::RobotRules,
-LWP::RobotUA, and other kith and kin.
+L<WWW::Robot>, L<LWP::UserAgent>, L<WWW::SimpleRobot>, L<WWW::RobotRules>,
+L<LWP::RobotUA>, and other kith and kin.
 
 =cut
