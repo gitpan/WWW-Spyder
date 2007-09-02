@@ -1,4 +1,12 @@
 #--------------------------------------------------------------------
+0.20 - 1 September 2007
+A perlmonk noticed the dist files were all messed up. Fixed that with
+a MANIFEST.skip. Lame.
+
+Also, I realize calling outside without 1) checking for a connection
+and 2) asking permission, is bad form. Tuits lacking.
+
+#--------------------------------------------------------------------
 0.19 - 22 December 2006
 Fixed typo (seed_url) in POD. Thanks to Begzudin Omerovic for catch.
 No longer uses POSIX::nice -- no other code changes.

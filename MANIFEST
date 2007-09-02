@@ -1,8 +1,18 @@
+blib/arch/auto/WWW/Spyder/.exists
+blib/lib/auto/WWW/Spyder/.exists
+blib/lib/WWW/.exists
+blib/lib/WWW/Spyder.pm
+blib/man3/.exists
+blib/man3/WWW::Spyder.3pm
 Bugs
 Changes
+Makefile
+Makefile.old
 Makefile.PL
 MANIFEST			This list of files
+MANIFEST.skip
 META.yml
+pm_to_blib
 Readme
 RELEASE
 spyder-mini-bio
