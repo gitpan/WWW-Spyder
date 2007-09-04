@@ -1,4 +1,9 @@
 #--------------------------------------------------------------------
+0.21 - 3 September 2007
+Ditto for 0.20. Bad upload, included the blib. Redid dist from
+module-starter for a clean break with the original dist.
+
+#--------------------------------------------------------------------
 0.20 - 1 September 2007
 A perlmonk noticed the dist files were all messed up. Fixed that with
 a MANIFEST.skip. Lame.

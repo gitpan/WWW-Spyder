@@ -1,8 +1,17 @@
+use strict;
+use warnings;
 use ExtUtils::MakeMaker;
-# See lib/ExtUtils/MakeMaker.pm for details of how to influence
-# the contents of the Makefile that is written.
+
 WriteMakefile(
-    'NAME'		=> 'WWW::Spyder',
-    'VERSION_FROM'	=> 'Spyder.pm', # finds $VERSION
-    'PREREQ_PM'		=> {}, # e.g., Module::Name => 1.1
+    NAME                => 'WWW::Spyder',
+    AUTHOR              => 'Ashley Pond V <ashley@cpan.org>',
+    VERSION_FROM        => 'lib/WWW/Spyder.pm',
+    ABSTRACT_FROM       => 'lib/WWW/Spyder.pm',
+    PL_FILES            => {},
+    PREREQ_PM => {
+        'Test::More' => 0,
+        'version'    => 0,
+    },
+    dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
+    clean               => { FILES => 'WWW-Spyder-*' },
 );
