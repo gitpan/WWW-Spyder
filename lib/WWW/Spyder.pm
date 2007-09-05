@@ -14,7 +14,7 @@ use HTML::Entities;
 use Digest::MD5 "md5_base64";      # for making seen content key/index
 #---------------------------------------------------------------------
 use Carp;
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 our $VERBOSITY ||= 0;
 #=====================================================================
 #  METHODS
@@ -108,7 +108,7 @@ sub seed {
     $url or croak "Must provide URL to seed().";
     croak "You have passed something besides a plain URL to seed()!"
         if ref $url;
-    $ego->stack_urls($url);
+    $ego->_stack_urls($url);
     return 1; # to the top of the stacks
 }
 #=====================================================================
@@ -206,7 +206,7 @@ sub crawl {
             $pair = $item;
         }
 # put links into the queue(s)
-       $ego->stack_urls() if $ego->_links;
+       $ego->_stack_urls() if $ego->_links;
 
 # clean up text a bit. should this be here...?
         if ( $ego->{_text} and ${$ego->{_text}} ) {
@@ -233,7 +233,7 @@ sub crawl {
     }
 }
 #=====================================================================
-sub stack_urls {  # should eventually be broken into stack and sift?
+sub _stack_urls {  # should eventually be broken into stack and sift?
 
 # dual purpose, w/ terms it filters as long as there are no urls
 # passed, otherwise it's setting them to the top of the queues
@@ -345,34 +345,34 @@ sub spydered {
             scalar keys %{ $ego->{_spydered} };
 }
 #=====================================================================
-sub exclude {  # what about FILES TYPES!?
-    return undef; # not working yet!
-    my ($ego,$thing) = @_;
-    if ( $thing =~ m<^[^:]{3,5}://> ) 
-    {
-        return $ego->{_Xklood}{_domain}{$thing}++;
-    } 
-    elsif ( $thing ) 
-    {
-        return $ego->{_Xklood}{_name}{$thing}++;
-    }
-}
+#sub exclude {  # what about FILES TYPES!?
+#    return undef; # not working yet!
+#    my ($ego,$thing) = @_;
+#    if ( $thing =~ m<^[^:]{3,5}://> ) 
+#    {
+#        return $ego->{_Xklood}{_domain}{$thing}++;
+#    } 
+#    elsif ( $thing ) 
+#    {
+#        return $ego->{_Xklood}{_name}{$thing}++;
+#    }
+#}
 #=====================================================================
-sub excluded_domains {
-    return undef; # not working yet!
-    my ($ego) = @_;
-    return wantarray ?
-        keys %{$ego->{_Xklood}{_domain}} : 
-            [ keys %{$ego->{_Xklood}{_domain}} ];    
-}
+#sub excluded_domains {
+#    return undef; # not working yet!
+#    my ($ego) = @_;
+#    return wantarray ?
+#        keys %{$ego->{_Xklood}{_domain}} : 
+#            [ keys %{$ego->{_Xklood}{_domain}} ];    
+#}
 #=====================================================================
-sub excluded_names {
-    return undef; # not working yet!
-    my ($ego) = @_;
-    return wantarray ?
-        keys %{$ego->{_Xklood}{_name}} : 
-            [ keys %{$ego->{_Xklood}{_name}} ];    
-}
+#sub excluded_names {
+#    return undef; # not working yet!
+#    my ($ego) = @_;
+#    return wantarray ?
+#        keys %{$ego->{_Xklood}{_name}} : 
+#            [ keys %{$ego->{_Xklood}{_name}} ];    
+#}
 #=====================================================================
 sub go_to_seed {
     my ( $ego, $engine, $query ) = @_;
@@ -609,7 +609,7 @@ sub _choose_courteously {
             $i-- unless $switch;
         }
     }
-    return undef;  # we couldn't pick one courteously
+    # we couldn't pick one courteously
 } # end of _choose_courteously()
 #=====================================================================
 sub _just_choose {
@@ -725,6 +725,8 @@ sub _stringify {
 #=====================================================================
 package WWW::Spyder::Page;
 #=====================================================================
+use strict;
+use warnings;
 use Carp;
 {
 sub new {
@@ -844,7 +846,7 @@ sub get_seed {
 
 WWW::Spyder - a simple non-persistent web crawler.
 
-=head1 VERSION 0.21
+=head1 VERSION 0.22
 
 =head1 SYNOPSIS
 
@@ -932,6 +934,44 @@ You should probably add your email with from() as well.
 They live in $ENV{HOME}/spyderCookie by default but you can set your
 own file if you prefer or want to save different cookie files for
 different spyders.
+
+=item * $spyder->go_to_seed
+
+=item * $spyder->queue_count
+
+=item * $spyder->show_attributes
+
+=item * $spyder->spydered
+
+=item * $spyder->crawl
+
+Returns (and removes) a Spyder page object from the queue of spydered pages.
+
+=back
+
+=head2 Sypder::Page methods
+
+=over 6
+
+=item * $page->title
+
+=item * $page->text
+
+=item * $page->raw
+
+=item * $page->url
+
+=item * $page->domain
+
+=item * $page->link_name
+
+=item * $page->link
+
+=item * $page->description
+
+=item * $page->pages_enQs
+
+=back
 
 =head2 Weird courteous behavior
 
@@ -1042,7 +1082,9 @@ the available list of links() each time it's called.
 next_link() destructively returns the next URI-ish object in the page.
 They are objects with three accessors.
 
-=over 10
+=back
+
+=over 6
 
 =item * $link->url
 
@@ -1052,8 +1094,6 @@ URL just as the method does.
 =item * $link->name
 
 =item * $link->domain
-
-=back
 
 =back
 
