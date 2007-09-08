@@ -1,4 +1,13 @@
 #--------------------------------------------------------------------
+0.23 - 8 September 2007
+The secret files keep making it through. From a fresh setup with
+Module::Install this time. They aren't in the MANIFEST or my zipped
+copy so if they make it to CPAN, my only recourse is tears.
+
+Solved, I think. On OS X: COPY_EXTENDED_ATTRIBUTES_DISABLE needs to be
+true.
+
+#--------------------------------------------------------------------
 0.22 - 4 September 2007
 AH! I only realized today how thin some of the POD is. Stubbing some
 new stuff. Fixing for the new tests and the bad resource fork files

@@ -10,14 +10,17 @@
 #
 #   MakeMaker Parameters:
 
-#     ABSTRACT_FROM => q[lib/WWW/Spyder.pm]
-#     AUTHOR => q[Ashley Pond V <ashley@cpan.org>]
+#     ABSTRACT => q[a simple non-persistent web crawler.]
+#     AUTHOR => q[, AUTHOR]
+#     DIR => []
+#     DISTNAME => q[WWW-Spyder]
 #     NAME => q[WWW::Spyder]
+#     NO_META => q[1]
 #     PL_FILES => {  }
 #     PREREQ_PM => { Test::More=>q[0], LWP::UserAgent=>q[0], Digest::MD5=>q[0], HTML::Entities=>q[0], HTML::Parser=>q[3], URI::URL=>q[0], HTTP::Cookies=>q[0] }
-#     VERSION_FROM => q[lib/WWW/Spyder.pm]
-#     clean => { FILES=>q[WWW-Spyder-*] }
-#     dist => { COMPRESS=>q[gzip -9f], SUFFIX=>q[gz] }
+#     VERSION => q[0.23]
+#     dist => { PREOP=>q[$(PERL) -I. "-MModule::Install::Admin" -e "dist_preop(q($(DISTVNAME)))"] }
+#     test => { TESTS=>q[t/00.load.t t/pod-coverage.t t/pod.t] }
 
 # --- MakeMaker post_initialize section:
 
@@ -56,11 +59,11 @@ AR_STATIC_ARGS = cr
 DIRFILESEP = /
 NAME = WWW::Spyder
 NAME_SYM = WWW_Spyder
-VERSION = 0.22
+VERSION = 0.23
 VERSION_MACRO = VERSION
-VERSION_SYM = 0_22
+VERSION_SYM = 0_23
 DEFINE_VERSION = -D$(VERSION_MACRO)=\"$(VERSION)\"
-XS_VERSION = 0.22
+XS_VERSION = 0.23
 XS_VERSION_MACRO = XS_VERSION
 XS_DEFINE_VERSION = -D$(XS_VERSION_MACRO)=\"$(XS_VERSION)\"
 INST_ARCHLIB = blib/arch
@@ -109,7 +112,7 @@ INSTALLSITEMAN3DIR = $(SITEPREFIX)/man/man3
 DESTINSTALLSITEMAN3DIR = $(DESTDIR)$(INSTALLSITEMAN3DIR)
 INSTALLVENDORMAN3DIR = $(VENDORPREFIX)/man/man3
 DESTINSTALLVENDORMAN3DIR = $(DESTDIR)$(INSTALLVENDORMAN3DIR)
-PERL_LIB = /System/Library/Perl/5.8.6
+PERL_LIB =
 PERL_ARCHLIB = /System/Library/Perl/5.8.6/darwin-thread-multi-2level
 LIBPERL_A = libperl.a
 FIRST_MAKEFILE = Makefile
@@ -117,15 +120,15 @@ MAKEFILE_OLD = $(FIRST_MAKEFILE).old
 MAKE_APERL_FILE = $(FIRST_MAKEFILE).aperl
 PERLMAINCC = $(CC)
 PERL_INC = /System/Library/Perl/5.8.6/darwin-thread-multi-2level/CORE
-PERL = /usr/bin/perl
-FULLPERL = /usr/bin/perl
+PERL = /usr/bin/perl "-Iinc"
+FULLPERL = /usr/bin/perl "-Iinc"
 ABSPERL = $(PERL)
 PERLRUN = $(PERL)
 FULLPERLRUN = $(FULLPERL)
 ABSPERLRUN = $(ABSPERL)
-PERLRUNINST = $(PERLRUN) "-I$(INST_ARCHLIB)" "-I$(INST_LIB)"
-FULLPERLRUNINST = $(FULLPERLRUN) "-I$(INST_ARCHLIB)" "-I$(INST_LIB)"
-ABSPERLRUNINST = $(ABSPERLRUN) "-I$(INST_ARCHLIB)" "-I$(INST_LIB)"
+PERLRUNINST = $(PERLRUN) "-I$(INST_ARCHLIB)" "-Iinc" "-I$(INST_LIB)"
+FULLPERLRUNINST = $(FULLPERLRUN) "-I$(INST_ARCHLIB)" "-Iinc" "-I$(INST_LIB)"
+ABSPERLRUNINST = $(ABSPERLRUN) "-I$(INST_ARCHLIB)" "-Iinc" "-I$(INST_LIB)"
 PERL_CORE = 0
 PERM_RW = 644
 PERM_RWX = 755
@@ -142,7 +145,7 @@ FULLEXT = WWW/Spyder
 BASEEXT = Spyder
 PARENT_NAME = WWW
 DLBASE = $(BASEEXT)
-VERSION_FROM = lib/WWW/Spyder.pm
+VERSION_FROM = 
 OBJECT = 
 LDFROM = $(OBJECT)
 LINKTYPE = dynamic
@@ -230,10 +233,10 @@ TAR = tar
 TARFLAGS = cvf
 ZIP = zip
 ZIPFLAGS = -r
-COMPRESS = gzip -9f
-SUFFIX = gz
+COMPRESS = gzip --best
+SUFFIX = .gz
 SHAR = shar
-PREOP = $(NOECHO) $(NOOP)
+PREOP = $(PERL) -I. "-MModule::Install::Admin" -e "dist_preop(q($(DISTVNAME)))"
 POSTOP = $(NOECHO) $(NOOP)
 TO_UNIX = $(NOECHO) $(NOOP)
 CI = ci -u
@@ -241,7 +244,7 @@ RCS_LABEL = rcs -Nv$(VERSION_SYM): -q
 DIST_CP = best
 DIST_DEFAULT = tardist
 DISTNAME = WWW-Spyder
-DISTVNAME = WWW-Spyder-0.22
+DISTVNAME = WWW-Spyder-0.23
 
 
 # --- MakeMaker macro section:
@@ -411,7 +414,7 @@ clean_subdirs :
 # the Makefile here so a later make realclean still has a makefile to use.
 
 clean :: clean_subdirs
-	-$(RM_RF) WWW-Spyder-* ./blib $(MAKE_APERL_FILE) $(INST_ARCHAUTODIR)/extralibs.all $(INST_ARCHAUTODIR)/extralibs.ld perlmain.c tmon.out mon.out so_locations pm_to_blib *$(OBJ_EXT) *$(LIB_EXT) perl.exe perl perl$(EXE_EXT) $(BOOTSTRAP) $(BASEEXT).bso $(BASEEXT).def lib$(BASEEXT).def $(BASEEXT).exp $(BASEEXT).x core core.*perl.*.? *perl.core core.[0-9] core.[0-9][0-9] core.[0-9][0-9][0-9] core.[0-9][0-9][0-9][0-9] core.[0-9][0-9][0-9][0-9][0-9]
+	-$(RM_RF) ./blib $(MAKE_APERL_FILE) $(INST_ARCHAUTODIR)/extralibs.all $(INST_ARCHAUTODIR)/extralibs.ld perlmain.c tmon.out mon.out so_locations pm_to_blib *$(OBJ_EXT) *$(LIB_EXT) perl.exe perl perl$(EXE_EXT) $(BOOTSTRAP) $(BASEEXT).bso $(BASEEXT).def lib$(BASEEXT).def $(BASEEXT).exp $(BASEEXT).x core core.*perl.*.? *perl.core core.[0-9] core.[0-9][0-9] core.[0-9][0-9][0-9] core.[0-9][0-9][0-9][0-9] core.[0-9][0-9][0-9][0-9][0-9]
 	-$(MV) $(FIRST_MAKEFILE) $(MAKEFILE_OLD) $(DEV_NULL)
 
 
@@ -430,30 +433,13 @@ realclean purge ::  clean realclean_subdirs
 
 
 # --- MakeMaker metafile section:
-metafile :
-	$(NOECHO) $(ECHO) '# http://module-build.sourceforge.net/META-spec.html' > META.yml
-	$(NOECHO) $(ECHO) '#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#' >> META.yml
-	$(NOECHO) $(ECHO) 'name:         WWW-Spyder' >> META.yml
-	$(NOECHO) $(ECHO) 'version:      0.22' >> META.yml
-	$(NOECHO) $(ECHO) 'version_from: lib/WWW/Spyder.pm' >> META.yml
-	$(NOECHO) $(ECHO) 'installdirs:  site' >> META.yml
-	$(NOECHO) $(ECHO) 'requires:' >> META.yml
-	$(NOECHO) $(ECHO) '    Digest::MD5:                   0' >> META.yml
-	$(NOECHO) $(ECHO) '    HTML::Entities:                0' >> META.yml
-	$(NOECHO) $(ECHO) '    HTML::Parser:                  3' >> META.yml
-	$(NOECHO) $(ECHO) '    HTTP::Cookies:                 0' >> META.yml
-	$(NOECHO) $(ECHO) '    LWP::UserAgent:                0' >> META.yml
-	$(NOECHO) $(ECHO) '    Test::More:                    0' >> META.yml
-	$(NOECHO) $(ECHO) '    URI::URL:                      0' >> META.yml
-	$(NOECHO) $(ECHO) '' >> META.yml
-	$(NOECHO) $(ECHO) 'distribution_type: module' >> META.yml
-	$(NOECHO) $(ECHO) 'generated_by: ExtUtils::MakeMaker version 6.17' >> META.yml
+metafile:
+	$(NOECHO) $(NOOP)
 
 
 # --- MakeMaker metafile_addtomanifest section:
 metafile_addtomanifest:
-	$(NOECHO) $(PERLRUN) -MExtUtils::Manifest=maniadd -e 'eval { maniadd({q{META.yml} => q{Module meta-data (added by MakeMaker)}}) } ' \
-	-e '    or print "Could not add META.yml to MANIFEST: $${'\''@'\''}\n"'
+	$(NOECHO) $(NOOP)
 
 
 # --- MakeMaker dist_basics section:
@@ -687,7 +673,7 @@ $(MAKE_APERL_FILE) : $(FIRST_MAKEFILE)
 TEST_VERBOSE=0
 TEST_TYPE=test_$(LINKTYPE)
 TEST_FILE = test.pl
-TEST_FILES = t/*.t
+TEST_FILES = t/00.load.t t/pod-coverage.t t/pod.t
 TESTDB_SW = -d
 
 testdb :: testdb_$(LINKTYPE)
@@ -695,10 +681,10 @@ testdb :: testdb_$(LINKTYPE)
 test :: $(TEST_TYPE)
 
 test_dynamic :: pure_all
-	PERL_DL_NONLAZY=1 $(FULLPERLRUN) "-MExtUtils::Command::MM" "-e" "test_harness($(TEST_VERBOSE), '$(INST_LIB)', '$(INST_ARCHLIB)')" $(TEST_FILES)
+	PERL_DL_NONLAZY=1 $(FULLPERLRUN) "-MExtUtils::Command::MM" "-e" "test_harness($(TEST_VERBOSE), 'inc', '$(INST_LIB)', '$(INST_ARCHLIB)')" $(TEST_FILES)
 
 testdb_dynamic :: pure_all
-	PERL_DL_NONLAZY=1 $(FULLPERLRUN) $(TESTDB_SW) "-I$(INST_LIB)" "-I$(INST_ARCHLIB)" $(TEST_FILE)
+	PERL_DL_NONLAZY=1 $(FULLPERLRUN) $(TESTDB_SW) "-Iinc" "-I$(INST_LIB)" "-I$(INST_ARCHLIB)" $(TEST_FILE)
 
 test_ : test_dynamic
 
@@ -709,10 +695,10 @@ testdb_static :: testdb_dynamic
 # --- MakeMaker ppd section:
 # Creates a PPD (Perl Package Description) for a binary distribution.
 ppd:
-	$(NOECHO) $(ECHO) '<SOFTPKG NAME="$(DISTNAME)" VERSION="0,22,0,0">' > $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '<SOFTPKG NAME="$(DISTNAME)" VERSION="0,23,0,0">' > $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <TITLE>$(DISTNAME)</TITLE>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <ABSTRACT>a simple non-persistent web crawler.</ABSTRACT>' >> $(DISTNAME).ppd
-	$(NOECHO) $(ECHO) '    <AUTHOR>Ashley Pond V &lt;ashley@cpan.org&gt;</AUTHOR>' >> $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '    <AUTHOR>, AUTHOR</AUTHOR>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <IMPLEMENTATION>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <DEPENDENCY NAME="Digest-MD5" VERSION="0,0,0,0" />' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <DEPENDENCY NAME="HTML-Entities" VERSION="0,0,0,0" />' >> $(DISTNAME).ppd
@@ -742,3 +728,33 @@ pm_to_blib: $(TO_INST_PM)
 
 
 # End.
+# Postamble by Module::Install 0.67
+# --- Module::Install::Admin::Makefile section:
+
+realclean purge ::
+	$(RM_F) $(DISTVNAME).tar$(SUFFIX)
+	$(RM_RF) inc MANIFEST.bak _build
+	$(PERL) -I. "-MModule::Install::Admin" -e "remove_meta()"
+
+reset :: purge
+
+upload :: test dist
+	cpan-upload -verbose $(DISTVNAME).tar$(SUFFIX)
+
+grok ::
+	perldoc Module::Install
+
+distsign ::
+	cpansign -s
+
+# --- Module::Install::AutoInstall section:
+
+config :: installdeps
+	$(NOECHO) $(NOOP)
+
+checkdeps ::
+	$(PERL) Makefile.PL --checkdeps
+
+installdeps ::
+	$(NOECHO) $(NOOP)
+

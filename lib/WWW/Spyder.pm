@@ -14,7 +14,7 @@ use HTML::Entities;
 use Digest::MD5 "md5_base64";      # for making seen content key/index
 #---------------------------------------------------------------------
 use Carp;
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 our $VERBOSITY ||= 0;
 #=====================================================================
 #  METHODS
@@ -846,7 +846,7 @@ sub get_seed {
 
 WWW::Spyder - a simple non-persistent web crawler.
 
-=head1 VERSION 0.22
+=head1 VERSION 0.23
 
 =head1 SYNOPSIS
 
