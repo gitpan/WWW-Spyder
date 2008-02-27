@@ -18,6 +18,8 @@ MANIFEST			This list of files
 MANIFEST.skip
 META.yml
 README
+script/spyder-birthday
+script/spyder-mini-bio
 t/00.load.t
 t/pod-coverage.t
 t/pod.t

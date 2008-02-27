@@ -1,4 +1,14 @@
 #--------------------------------------------------------------------
+0.24 - 26 February 2008
+Applying a fairly large feature patch from Sean Mostafavi. There are
+no new tests with it and I'm sorry to say the test suite is quite
+lacking to begin with... so there you have it.
+
+Changed all "$ego" to "$self." While I enjoy the shorter and easier to
+type version, it's too alien to other devs. Fixed some POD up a little
+but didn't change much. Brought in the regular license disclaimer.
+
+#--------------------------------------------------------------------
 0.23 - 8 September 2007
 The secret files keep making it through. From a fresh setup with
 Module::Install this time. They aren't in the MANIFEST or my zipped

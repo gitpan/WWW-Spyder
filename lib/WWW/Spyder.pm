@@ -1,24 +1,23 @@
-#=====================================================================
 package WWW::Spyder;
-#=====================================================================
+
 use strict;
 use warnings;
-#---------------------------------------------------------------------
+
 use HTML::Parser 3;
-#---------------------------------------------------------------------
+
 use LWP::UserAgent;
 use HTTP::Cookies;
 use URI::URL;
 use HTML::Entities;
-#---------------------------------------------------------------------
-use Digest::MD5 "md5_base64";      # for making seen content key/index
-#---------------------------------------------------------------------
+
+use Digest::MD5 "md5_base64"; # For making seen content key/index.
+
 use Carp;
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 our $VERBOSITY ||= 0;
-#=====================================================================
-#  METHODS
-#=====================================================================
+
+#  Methods
+#--------------------------
 { # make it all a bit more private
     my %_methods = (# these are methods & roots of our attribute names
                     UA           => undef,
@@ -29,117 +28,166 @@ our $VERBOSITY ||= 0;
                     _exit_epoch  => undef,
                     _term_count  => undef,
                     );
-#  those may all get hardcoded eventually, but they're handy for now
-#=====================================================================
+#  Those may all get hardcoded eventually, but they're handy for now.
+#--------------------------
 sub new {
     my ( $caller ) = shift;
     my $class = ref($caller) || $caller;
-    my $ego = bless {}, $class;
+    my $self = bless {}, $class;
 
     my ( $seed, %arg );
     if ( @_ == 1 ) {
         ( $seed ) = @_;
     }
-    %arg = ( sleep      => undef,
-             exit_on    => undef,
-             seed       => undef,
-             sleep_base => 5,
+    %arg = ( broken_links        => [],
+             exit_on             => undef,
+             image_checking      => 0,
+             report_broken_links => 0,
+             seed                => undef,
+             sleep               => undef,
+             sleep_base          => 5,
+             UA                  => undef
              );
     %arg = ( %arg, @_ ) unless @_ % 2;
 
-# install all our methods, either set once then get only or push/shift
-# array refs
+    # Set our UA object if it was passed on to our constructor.
+    $self->{UA} = $arg{UA} if $arg{UA};
+
+    # Turn on image checking if requested.  img src tags will be checked if
+    # image_checking is set to 1 in the constructor.
+    $self->{image_checking} = $arg{image_checking} if $arg{image_checking};
+
+    # Turn on broken link checking if requested.  Broken link URIs can be
+    # obtained via get_broken_links().
+    $self->{report_broken_links} = $arg{report_broken_links}
+        if $arg{report_broken_links};
+
+# Install all our methods, either set once then get only or push/shift
+# array refs.
     for my $method ( %_methods ) {
         no strict "refs";
         no warnings;
         my $attribute = '_' . $method;
 
         if ( ref $_methods{$method} eq 'ARRAY' ) {
-            *{"$class::$method"} = sub { 
-                my($ego,@args) = @_;
-                return shift(@{$ego->{$attribute}}) unless @args;
-                push(@{$ego->{$attribute}}, @args);
+            *{"$class::$method"} = sub {
+                my($self,@args) = @_;
+                return shift(@{$self->{$attribute}}) unless @args;
+                push(@{$self->{$attribute}}, @args);
             };
         } else {
-            *{"$class::$method"} = sub { 
-                my($ego,$arg) = @_;
+            *{"$class::$method"} = sub {
+                my($self,$arg) = @_;
                 carp "You cannot reset $method!"
-                    if $arg and exists $ego->{$attribute};
-                return $ego->{$attribute}   #get if already set
-                if exists $ego->{$attribute};
-                $ego->{$attribute} = $arg;  #only set one time!
+                    if $arg and exists $self->{$attribute};
+                return $self->{$attribute}   #get if already set
+                if exists $self->{$attribute};
+                $self->{$attribute} = $arg;  #only set one time!
             };
         }
     }
+
     $seed ||= $arg{seed};
-    $ego->seed($seed) if $seed;
-    $ego->sleep_base($arg{sleep_base});
-    $ego->_install_exit_check(\%arg) unless $ego->can('_exit_check');
-    $ego->_install_html_parser;
-    $ego->_install_web_agent;
-    return $ego;
+    $self->seed($seed) if $seed;
+    $self->sleep_base($arg{sleep_base});
+    $self->_install_exit_check(\%arg) unless $self->can('_exit_check');
+    $self->_install_html_parser;
+    $self->_install_web_agent;
+
+    return $self;
 }
-#=====================================================================
+#--------------------------
 sub terms {
-    my ($ego,@terms) = @_;
-    if ( @terms and not exists $ego->{_terms} ) {
-        $ego->_term_count(scalar @terms);  # makes this set once op
+    my ($self,@terms) = @_;
+    if ( @terms and not exists $self->{_terms} ) {
+        $self->_term_count(scalar @terms);  # makes this set once op
         my %terms;
         $terms{$_} = qr/$_/ for @terms;
-        $ego->{_terms} = \%terms;
+        $self->{_terms} = \%terms;
     } else {
-        return $ego->{_terms}
+        return $self->{_terms}
     }
 }
-#=====================================================================
+#--------------------------
 sub show_attributes {
-    my ($ego) = @_;
-    return map {/^_(.+)$/} keys %{$ego};
+    my ($self) = @_;
+    return map {/^_(.+)$/} keys %{$self};
 }
-#=====================================================================
+#--------------------------
 sub slept {
-    my ($ego, $time) = @_;
-    $ego->{_Slept} += $time if $time;
-    return $ego->{_Slept} unless $time;
+    my ($self, $time) = @_;
+    $self->{_Slept} += $time if $time;
+    return $self->{_Slept} unless $time;
 }
-#=====================================================================
+#--------------------------
 sub seed {
-    my ($ego, $url) = @_;
+    my ($self, $url) = @_;
     $url or croak "Must provide URL to seed().";
     croak "You have passed something besides a plain URL to seed()!"
         if ref $url;
-    $ego->_stack_urls($url);
+    $self->_stack_urls($url);
     return 1; # to the top of the stacks
 }
-#=====================================================================
+
+#--------------------------
+sub get_broken_links {
+    my $self = shift;
+
+    return $self->{broken_links};
+}
+
+#--------------------------
 sub crawl {
-    my ($ego) = @_;
+    my $self      = shift;
+    my $opts     = shift || undef;
+    my $excludes = [];
+
+    # Exclude list option.
+    if ( ref($opts->{exclude}) eq 'ARRAY' ) {
+        $excludes = $opts->{exclude};
+    }
 
     while ('I have pages to get...') {
 
-        $ego->_exit_check and return;
+        $self->_exit_check and return;
 
-        my $enQ = $ego->_choose_courteously || 
-            $ego->_just_choose || 
-                return;
+        my $skip_url = 0;
+        my $enQ      = undef;
+
+        # Report a page with a 404 error in the title if report_broken_links is
+        # enabled.  Also keep processing if we're looking for img src tags.
+        if ($self->{report_broken_links} || $self->{image_checking}) {
+            $enQ = $self->_choose_courteously ||
+                $self->_just_choose;
+        } else {
+            $enQ = $self->_choose_courteously ||
+                $self->_just_choose ||
+                    return;
+        }
 
         my $url = $enQ->url;
-        $ego->url($url);
-        $ego->_current_enQ($enQ);
+
+        # Skip this URL if it's in our excluded list.
+        for (@$excludes) { $skip_url = 1 if $url =~ m/$_/; }
+        next if $skip_url;
+
+        $self->url($url);
+        $self->_current_enQ($enQ);
 
         print "GET'ing: $url\n" if $VERBOSITY;
 
-        my $response = $ego->UA->request   # no redirects &c is simple_
+        my $response = $self->UA->request   # no redirects &c is simple_
             ( HTTP::Request->new( GET => "$url" ) );
-        print STDERR "\a" if $ego->bell;
+
+        print STDERR "\a" if $self->bell;
 
         $response or
             carp "$url failed GET!" and next;
 
-        push @{$ego->{_courtesy_Queue}}, $enQ->domain;
-        shift @{$ego->{_courtesy_Queue}} 
-        if $ego->{_courtesy_Queue} 
-        and @{$ego->{_courtesy_Queue}} > 100;
+        push @{$self->{_courtesy_Queue}}, $enQ->domain;
+        shift @{$self->{_courtesy_Queue}}
+        if $self->{_courtesy_Queue}
+        and @{$self->{_courtesy_Queue}} > 100;
 
         my $head = $response->headers_as_string;
         $head or
@@ -156,47 +204,74 @@ sub crawl {
             carp "$url has no discernible BASE!" and
                 next; # no baseless webpages
 
-# WE SHOULD also look for <HTML> b/c some servers that we might want
+# WE SHOULD also look for <HTML> because some servers that we might want
 # to look at don't properly report the content-type
 
 # start over unless this is something we can read
-        lc($head) =~ /content-type:\s?(?:text|html)/ or
-            carp "$url doesn't look like TEXT or HTML!" and
-                next; # no weird media, movies, flash, etc
+        my $title       = '';
+        my $description = '';
+        my $is_image    = 0;
 
-        my ( $title ) = $head =~ m,[Tt]itle:\s*(.+)\n,;
+        # Make an exception for images.
+        if ($self->{image_checking}) {
+            if ($head =~ /Content\-Type:\s*image/i) {
+	        my ($img_size) = $head =~ /Content\-Length:\s*(\d+)/i;
 
-        my ( $description ) = $head =~ 
-            /[^:]*?DESCRIPTION:\s*((?:[^\n]+(?:\n )?)+)/i;
+                if ($img_size <= 0) {
+                    $title = $description = '404 Not Found';
+                    next;
+                } else {
+                    $is_image = 1;
+                }
+            }
+        } else {
+	    lc($head) =~ /content-type:\s?(?:text|html)/ or
+	        carp "$url doesn't look like TEXT or HTML!" and
+		    next; # no weird media, movies, flash, etc
+        }
 
-        $description = $ego->_snip($description) if $description;
+	( $title ) = $head =~ m,[Tt]itle:\s*(.+)\n,
+            unless $title;
+
+        ( $description ) = $head =~
+            /[^:]*?DESCRIPTION:\s*((?:[^\n]+(?:\n )?)+)/i
+                unless $description;
+
+        # Add this link to our dead links list if the title matches
+        # a standard "404 Not Found" error.
+        if ($title && $self->{report_broken_links}) {
+            push(@{ $self->{broken_links} }, $url)
+                if $title =~ /^\s*404\s+Not\s+Found\s*$/;
+        }
+
+        $description = $self->_snip($description) if $description;
 
         my $page = $response->content or
             carp "Failed to fetch $url." and
                 next; # no empty pages, start over with next url
 
-        $ego->{_current_Bytes} = length($page);
-        $ego->spyder_data($ego->{_current_Bytes});
+        $self->{_current_Bytes} = length($page);
+        $self->spyder_data($self->{_current_Bytes});
 
 # we are going to use a digest to prevent parsing the identical
 # content received via a different url
         my $digest = md5_base64($page); # unique microtag of the page
 # so if we've seen it before, start over with the next URL
-        $ego->{_page_Memory}{$digest}++ and 
-            carp "Seen this page's content before: $url" 
+        $self->{_page_Memory}{$digest}++ and
+            carp "Seen this page's content before: $url"
                 and next;
 
-        $ego->{_page_content} = $page;
+        $self->{_page_content} = $page;
         print "PARSING: $url\n" if $VERBOSITY > 1;
-        $ego->{_spydered}{$url}++;
-        $ego->html_parser->parse($page);
-        $ego->html_parser->eof;
+        $self->{_spydered}{$url}++;
+        $self->html_parser->parse($page);
+        $self->html_parser->eof;
 
-        $ego->{_adjustment} = $ego->_parse_for_terms if $ego->terms;
+        $self->{_adjustment} = $self->_parse_for_terms if $self->terms;
 
 # make links absolute and fix bad spacing in link names, then turn
 # them into an Enqueue object
-        for my $pair ( @{$ego->{_enqueue_Objects}} ) {
+        for my $pair ( @{$self->{_enqueue_Objects}} ) {
             my $url;
             eval {
                 $url = URI::URL::url($pair->[0], $base)->abs;
@@ -206,11 +281,11 @@ sub crawl {
             $pair = $item;
         }
 # put links into the queue(s)
-       $ego->_stack_urls() if $ego->_links;
+       $self->_stack_urls() if $self->_links;
 
 # clean up text a bit. should this be here...?
-        if ( $ego->{_text} and ${$ego->{_text}} ) {
-            ${$ego->{_text}} =~ s/(?:\s*[\r\n]){3,}/\n\n/g;
+        if ( $self->{_text} and ${$self->{_text}} ) {
+            ${$self->{_text}} =~ s/(?:\s*[\r\n]){3,}/\n\n/g;
         }
 
 # in the future Page object should be installed like parsers as a
@@ -219,54 +294,54 @@ sub crawl {
   my $Page =
       WWW::Spyder::Page->new(
                              title  => $title,
-                             text   => $ego->{_text},
+                             text   => $self->{_text},
                              raw    => \$page,
                              url    => $enQ->url,
                              domain => $enQ->domain,
                              link_name   => undef,
                              link        => undef,
                              description => $description || '',
-                             pages_enQs  => $ego->_enqueue,
+                             pages_enQs  => $self->_enqueue,
                              );
-        $ego->_reset;       #<<--clear out things that might remain
+        $self->_reset;       #<<--clear out things that might remain
         return $Page;
     }
 }
-#=====================================================================
+#--------------------------
 sub _stack_urls {  # should eventually be broken into stack and sift?
 
 # dual purpose, w/ terms it filters as long as there are no urls
 # passed, otherwise it's setting them to the top of the queues
-    my ($ego, @urls) = @_;
+    my ($self, @urls) = @_;
 
     print "Stacking " . join(', ', @urls) . "\n"
         if @urls and $VERBOSITY > 5;
 
-    if ( $ego->terms and not @urls ) {
+    if ( $self->terms and not @urls ) {
         no warnings;
-        my @Qs = $ego->_queues;
-        for my $enQ ( @{$ego->_enqueue} ) {
+        my @Qs = $self->_queues;
+        for my $enQ ( @{$self->_enqueue} ) {
             my ( $url, $name ) = ( $enQ->url, $enQ->name );
 
-            next if $ego->_seen($url);
+            next if $self->_seen($url);
 
             my $match = 0;
-            while ( my ($term,$rx) = each %{$ego->terms} ) {
+            while ( my ($term,$rx) = each %{$self->terms} ) {
                 $match++ for $name =~ /$rx/g;
             }
             my $baseQ = 10;
-            my $adjustment = $ego->{_adjustment};
+            my $adjustment = $self->{_adjustment};
             $baseQ -= $adjustment; # 4 to 0
 
-            push @{$ego->{$baseQ}}, $enQ
+            push @{$self->{$baseQ}}, $enQ
                 and next unless $match;
 
             if ( $VERBOSITY > 1 ) {
                 print "NAME: $name\n";
                 printf "   RATIO -->> %d\n", $match;
             }
-            my $queue_index = sprintf "%d", 
-                $ego->_term_count / $match;
+            my $queue_index = sprintf "%d",
+                $self->_term_count / $match;
 
             $queue_index -= $adjustment;
             $queue_index = 4 if $queue_index > 4;
@@ -274,42 +349,42 @@ sub _stack_urls {  # should eventually be broken into stack and sift?
             my $queue = $Qs[$queue_index];
             if ($VERBOSITY > 2) {
                 print "Q:$queue [$queue_index] match: $match terms:",
-                $ego->_term_count, "  Adjust: $adjustment\n\n";
+                $self->_term_count, "  Adjust: $adjustment\n\n";
             }
-            push @{$ego->{$queue}}, $enQ;
+            push @{$self->{$queue}}, $enQ;
         }
     } elsif ( @urls > 0 ) {
         for my $url ( @urls ) {
-            next if $ego->_seen($url);
-            my $queue = $ego->_queues;
+            next if $self->_seen($url);
+            my $queue = $self->_queues;
             carp "Placing $url in '$queue'\n" if $VERBOSITY > 2;
 
-# unshift b/c seeding is priority
-            unshift @{$ego->{$queue}},
+# unshift because seeding is priority
+            unshift @{$self->{$queue}},
                WWW::Spyder::Enqueue->new($url,undef);
         }
     } else {
-       for my $enQ ( @{$ego->_enqueue} ) {
+       for my $enQ ( @{$self->_enqueue} ) {
             my ( $url, $name ) = ( $enQ->url, $enQ->name );
-            next if $ego->_seen($url);
-            my $queue = $ego->_queues;
-            push @{$ego->{$queue}}, $enQ;
+            next if $self->_seen($url);
+            my $queue = $self->_queues;
+            push @{$self->{$queue}}, $enQ;
         }
    }
 }
-#=====================================================================
+#--------------------------
 sub queue_count {
-    my ($ego) = @_;
+    my ($self) = @_;
     my $count = 0;
-    for my $Q ( $ego->_queues ) {
-        next unless ref($ego->{$Q}) eq 'ARRAY';
-        $count += scalar @{$ego->{$Q}};
+    for my $Q ( $self->_queues ) {
+        next unless ref($self->{$Q}) eq 'ARRAY';
+        $count += scalar @{$self->{$Q}};
     }
     return $count;
 }
-#=====================================================================
+#--------------------------
 sub spyder_time {
-    my ($ego,$raw) = @_;
+    my ($self,$raw) = @_;
 
     my $time = time() - $^T;
     return $time if $raw;
@@ -323,127 +398,127 @@ sub spyder_time {
     return sprintf "%d day%s %02d:%02d:%02d",
     $day, $day == 1?'':'s', $hour, $min, $sec;
 }
-#=====================================================================
+#--------------------------
 sub spyder_data {
-    my ($ego, $bytes) = @_;
-    $ego->{_bytes_GOT} += $bytes and return $bytes if $bytes;
+    my ($self, $bytes) = @_;
+    $self->{_bytes_GOT} += $bytes and return $bytes if $bytes;
 
-    return 0 unless $ego->{_bytes_GOT};
+    return 0 unless $self->{_bytes_GOT};
 
-    my $for_commas = int($ego->{_bytes_GOT} / 1_024);
+    my $for_commas = int($self->{_bytes_GOT} / 1_024);
 
     for ( $for_commas ) {
         1 while s/(\d)(\d\d\d)(?!\d)/$1,$2/;
     }
     return $for_commas;
 }
-#=====================================================================
+#--------------------------
 sub spydered {
-    my ($ego) = @_;
-    return wantarray ? 
-        keys %{ $ego->{_spydered} } : 
-            scalar keys %{ $ego->{_spydered} };
+    my ($self) = @_;
+    return wantarray ?
+        keys %{ $self->{_spydered} } :
+            scalar keys %{ $self->{_spydered} };
 }
-#=====================================================================
+#--------------------------
 #sub exclude {  # what about FILES TYPES!?
 #    return undef; # not working yet!
-#    my ($ego,$thing) = @_;
-#    if ( $thing =~ m<^[^:]{3,5}://> ) 
+#    my ($self,$thing) = @_;
+#    if ( $thing =~ m<^[^:]{3,5}://> )
 #    {
-#        return $ego->{_Xklood}{_domain}{$thing}++;
-#    } 
-#    elsif ( $thing ) 
+#        return $self->{_Xklood}{_domain}{$thing}++;
+#    }
+#    elsif ( $thing )
 #    {
-#        return $ego->{_Xklood}{_name}{$thing}++;
+#        return $self->{_Xklood}{_name}{$thing}++;
 #    }
 #}
-#=====================================================================
+#--------------------------
 #sub excluded_domains {
 #    return undef; # not working yet!
-#    my ($ego) = @_;
+#    my ($self) = @_;
 #    return wantarray ?
-#        keys %{$ego->{_Xklood}{_domain}} : 
-#            [ keys %{$ego->{_Xklood}{_domain}} ];    
+#        keys %{$self->{_Xklood}{_domain}} :
+#            [ keys %{$self->{_Xklood}{_domain}} ];
 #}
-#=====================================================================
+#--------------------------
 #sub excluded_names {
 #    return undef; # not working yet!
-#    my ($ego) = @_;
+#    my ($self) = @_;
 #    return wantarray ?
-#        keys %{$ego->{_Xklood}{_name}} : 
-#            [ keys %{$ego->{_Xklood}{_name}} ];    
+#        keys %{$self->{_Xklood}{_name}} :
+#            [ keys %{$self->{_Xklood}{_name}} ];
 #}
-#=====================================================================
+#--------------------------
 sub go_to_seed {
-    my ( $ego, $engine, $query ) = @_;
+    my ( $self, $engine, $query ) = @_;
     carp "go_to_seed() is not functional yet!\n";
     return;  # NOT FUNCTIONAL
     my $seed = WWW::Spyder::Seed::get_seed($engine, $query);
-    $ego->seed($seed);
+    $self->seed($seed);
 }
-#=====================================================================
+#--------------------------
 sub verbosity {
-    my ( $ego, $verbosity ) = @_;
+    my ( $self, $verbosity ) = @_;
     carp "Not setting verbosity! Must be integer b/t 1 & 6!\n"
         and return
             unless $verbosity;
     $VERBOSITY = $verbosity;
 }
-#=====================================================================
+#--------------------------
 
-#=====================================================================
+#--------------------------
 #  PRIVATE Spyder Methods
-#=====================================================================
+#--------------------------
 sub _reset {
 # RESET MORE THAN THIS!?! make sure all the memory space is clean that
 # needs be for clean iteration???
-    my ($ego) = @_;
-    $ego->{$_} = undef for qw( _linkText _linkSwitch _href
+    my ($self) = @_;
+    $self->{$_} = undef for qw( _linkText _linkSwitch _href _src
                                _current_enQ _page_content
                                _current_Bytes _alt _enqueue_Objects
                                _text );
 }
-#=====================================================================
+#--------------------------
 sub _current_enQ {
-    my ($ego, $enQ) = @_;
-    my $last_enQ = $ego->{_current_enQ};
-    $ego->{_current_enQ} = $enQ if $enQ;
+    my ($self, $enQ) = @_;
+    my $last_enQ = $self->{_current_enQ};
+    $self->{_current_enQ} = $enQ if $enQ;
     return $last_enQ; #<<-so we can get last while setting a new one
 }
-#=====================================================================
+#--------------------------
 sub _enqueue {
-    my ($ego,$enQ) = @_;
-    push @{$ego->{_enqueue_Objects}}, $enQ if $enQ;
-    return $ego->{_enqueue_Objects};
+    my ($self,$enQ) = @_;
+    push @{$self->{_enqueue_Objects}}, $enQ if $enQ;
+    return $self->{_enqueue_Objects};
 }
-#=====================================================================
+#--------------------------
 sub _links {
-    my ($ego) = @_;
-    return [ map { $_->url } @{$ego->_enqueue} ];
+    my ($self) = @_;
+    return [ map { $_->url } @{$self->_enqueue} ];
 }
-#=====================================================================
+#--------------------------
 sub _seen {
-    my ($ego,$url) = @_;
-    return $ego->{_seenURLs}{$url}++;
+    my ($self,$url) = @_;
+    return $self->{_seenURLs}{$url}++;
 }
-#=====================================================================
+#--------------------------
 sub _parse_for_terms {
-    my ($ego) = @_;
-    $ego->{_page_terms_matches} = 0;
+    my ($self) = @_;
+    $self->{_page_terms_matches} = 0;
 
-    return 0 unless $ego->{_text};
+    return 0 unless $self->{_text};
 
-    while ( my ($term,$rx) = each %{$ego->terms} ) {
-        $ego->{_page_terms_matches}++ for 
-            $ego->{_page_content} =~ /$rx/g;
+    while ( my ($term,$rx) = each %{$self->terms} ) {
+        $self->{_page_terms_matches}++ for
+            $self->{_page_content} =~ /$rx/g;
     }
 
-    my $index = int( ( $ego->{_page_terms_matches} /
-                       length($ego->{_text}) ) * 1_000 );
+    my $index = int( ( $self->{_page_terms_matches} /
+                       length($self->{_text}) ) * 1_000 );
 # the algorithm might look it but isn't entirely arbitrary
 
-    print " PARSE TERMS : $ego->{_page_terms_matches} " .
-        "/ $ego->{_current_Bytes}\n" if $VERBOSITY > 1;
+    print " PARSE TERMS : $self->{_page_terms_matches} " .
+        "/ $self->{_current_Bytes}\n" if $VERBOSITY > 1;
 
     return 7 if $index > 25;
     return 6 if $index > 18;
@@ -454,9 +529,9 @@ sub _parse_for_terms {
     return 1 if $index > 0;
     return 0;
 }
-#=====================================================================
+#--------------------------
 sub _install_html_parser {
-    my ($ego) = @_;
+    my ($self) = @_;
 
     my $Parser = HTML::Parser->new
         (
@@ -464,70 +539,127 @@ sub _install_html_parser {
          [sub {
              no warnings;
              my ( $tag, $attr ) = @_;
-             return if $tag !~ /^(?:a|img)$/;
+
+             # Check for broken image links if requested.
+             return if $tag !~ /^(?:a|img)$/ && ! $self->{image_checking};
+
 # need to deal with AREA tags from maps /^(?:a(?:rea)?|img)$/;
              $attr->{href} =~ s,#[^/]*$,,;
+             $attr->{src}  =~ s,#[^/]*$,, if $self->{image_checking};
              return if lc($attr->{href}) =~ m,^\s*mailto:,;
              return if lc($attr->{href}) =~ m,^\s*file:,;
              return if lc($attr->{href}) =~ m,javascript:,;
-             $ego->{_href} ||= $attr->{href};
-             $ego->{_alt}  ||= $attr->{alt};
-             $ego->{_linkSwitch} = 1;
+
+             $self->{_src}  ||= $attr->{src} if $self->{image_checking};
+             $self->{_href} ||= $attr->{href};
+             $self->{_alt}  ||= $attr->{alt};
+             $self->{_linkSwitch} = 1;
+
+             # Don't wait for the end handler if we have an image, as an image
+             # src tag doesn't have an end.
+             if ($attr->{src} && $self->{image_checking} && ! $attr->{href}) {
+                 $self->{_linkText} ||= $self->{_alt} || '+';
+                 decode_entities($self->{_linkText});
+
+                 push @{$self->{_enqueue_Objects}},
+                     [ $self->{_href}, $self->{_linkText} ];
+
+                 push @{$self->{_enqueue_Objects}},
+                     [ $self->{_src}, $self->{_linkText} ]
+                         if $self->{_src} and $self->{image_checking};
+
+                 # reset all our caching variables
+                 $self->{_linkSwitch} = $self->{_href} = $self->{_alt} =
+                 $self->{_src} = $self->{_linkText} = undef;
+
+                 return;
+             }
          }, 'tagname, attr'],
          text_h =>
          [sub {
+
              return unless(my $it = shift);
              return if $it =~
                  m/(?:\Q<!--\E)|(?:\Q-->\E)/;
-             ${$ego->{_text}} .= $it;
-             $ego->{_linkText} .= $it 
-                 if $ego->{_linkSwitch};
+             ${$self->{_text}} .= $it;
+             $self->{_linkText} .= $it
+                 if $self->{_linkSwitch};
           }, 'dtext'],
          end_h =>
          [sub {
              my ( $tag ) = @_;
              no warnings; # only problem: <a><b>L</b>inks</a>
-             return unless $tag eq 'a' or $ego->{_linkSwitch};
-             $ego->{_linkText} ||= $ego->{_alt} || '+';
-             decode_entities($ego->{_linkText});
 
-             push @{$ego->{_enqueue_Objects}}, 
-                 [ $ego->{_href}, $ego->{_linkText} ];
+             if ($self->{image_checking}) {
+                 return unless $tag eq 'a' or $self->{_linkSwitch} or
+                               $tag eq 'img';
+             } else {
+                 return unless $tag eq 'a' or $self->{_linkSwitch};
+             }
+
+             $self->{_linkText} ||= $self->{_alt} || '+';
+             decode_entities($self->{_linkText});
+
+             push @{$self->{_enqueue_Objects}},
+                 [ $self->{_href}, $self->{_linkText} ];
+
+             push @{$self->{_enqueue_Objects}},
+                 [ $self->{_src}, $self->{_linkText} ]
+                     if $self->{_src} and $self->{image_checking};
 
           # reset all our caching variables
-             $ego->{_linkSwitch} = $ego->{_href} = $ego->{_alt} = 
-                 $ego->{_linkText} = undef;
+             $self->{_linkSwitch} = $self->{_href} = $self->{_alt} = $self->{_src} =
+                 $self->{_linkText} = undef;
          }, 'tagname'],
          default_h => [""],
         );
     $Parser->ignore_elements(qw(script style));
     $Parser->unbroken_text(1);
-    $ego->html_parser($Parser);
+    $self->html_parser($Parser);
 }
-#=====================================================================
+#--------------------------
 sub _install_web_agent {
-    my $ego = shift;
-    $ego->UA( LWP::UserAgent->new );
-    $ego->UA->agent('Mozilla/5.0');
-    $ego->UA->timeout(30);
-    $ego->UA->max_size(250_000);
+    my $self     = shift;
+    my $jar_jar = undef;
 
-    my $jar_jar = HTTP::Cookies->new
-        (file => $ego->cookie_file || "$ENV{HOME}/spyderCookies",
+    # If a LWP::UserAgent object was passed in to our constructor, use
+    # it.
+    if ($self->{UA}) {
+        $self->UA( $self->{UA} );
+
+    # Otherwise, create a new one.
+    } else {
+        $self->UA( LWP::UserAgent->new );
+    }
+
+    $self->UA->agent('Mozilla/5.0');
+    $self->UA->timeout(30);
+    $self->UA->max_size(250_000);
+
+    # Get our cookie from our the jar passed in.
+    if ($self->{UA}) {
+        $jar_jar = $self->{UA}->cookie_jar();
+
+    # Or else create a new cookie.
+    } else {
+	$jar_jar = HTTP::Cookies->new
+        (file => $self->cookie_file || "$ENV{HOME}/spyderCookies",
          autosave => 1,
          max_cookie_size => 4096,
          max_cookies_per_domain => 5, );
-    $ego->UA->cookie_jar($jar_jar);
+    }
+
+    $self->UA->cookie_jar($jar_jar);
 }
-#=====================================================================
+#--------------------------
 sub _install_exit_check {
-    my ($ego, $arg) = @_;
-    my $class = ref $ego;
+    my ($self, $arg) = @_;
+    my $class = ref $self;
 
     unless ( ref($arg) and ref($arg->{exit_on}) eq 'HASH' ) {
         no strict "refs";
-        *{$class."::_exit_check"} = 
-            sub { return 1 unless $ego->queue_count;
+        *{$class."::_exit_check"} =
+            sub { return 1 unless $self->queue_count;
                   return 0;
               };
         return;
@@ -535,14 +667,14 @@ sub _install_exit_check {
 
 # checks can be: links => #, success => ratio, time => 10min...
 # a piece of code we're going to build up to eval into method-hood
-    my $SUB = 'sub {  my $ego = shift; ' .
-    'return 1 unless $ego->queue_count; ';
+    my $SUB = 'sub {  my $self = shift; ' .
+    'return 1 unless $self->queue_count; ';
 #------------------------------------------------------------
     if ( $arg->{exit_on}{pages} ) {
         print "Installing EXIT on links: $arg->{exit_on}{pages}\n"
             if $VERBOSITY > 1;
         $SUB .= ' return 1 if ' .
-            '$ego->spydered >= ' .$arg->{exit_on}{pages} .';';
+            '$self->spydered >= ' .$arg->{exit_on}{pages} .';';
     }
 #------------------------------------------------------------
     if ( $arg->{exit_on}{success} ) {
@@ -553,7 +685,7 @@ sub _install_exit_check {
         print "Installing EXIT on time: $arg->{exit_on}{time}\n"
             if $VERBOSITY > 1;
 
-        my ($amount,$unit) = 
+        my ($amount,$unit) =
             $arg->{exit_on}{time} =~ /^(\d+)\W*(\w+?)s?$/;
 # skip final "s" in case of hours, secs, mins
 
@@ -566,10 +698,10 @@ sub _install_exit_check {
             next unless exists $times{$unit};
             $time_factor = $amount * $times{$unit};
         }
-        $ego->_exit_epoch($time_factor + $^T);
+        $self->_exit_epoch($time_factor + $^T);
 
         $SUB .= q{
-            return 1 if $ego->_exit_epoch < time();
+            return 1 if $self->_exit_epoch < time();
         };
     }
 #------------------------------------------------------------
@@ -578,57 +710,57 @@ sub _install_exit_check {
     no strict "refs";
     *{$class."::_exit_check"} = eval $SUB;
 }
-#=====================================================================
+#--------------------------
 sub _choose_courteously {
-    my $ego = shift;
+    my $self = shift;
 
 # w/o the switch and $i-- it acts a bit more depth first. w/ it, it's
 # basically hard head down breadth first
     print "CHOOSING courteously!\n" if $VERBOSITY > 1;
-    for my $Q ( $ego->_queues ) {
+    for my $Q ( $self->_queues ) {
         print "Looking for URL in $Q\n" if $VERBOSITY > 2;
-        next unless $ego->{$Q} and @{$ego->{$Q}} > 0;
+        next unless $self->{$Q} and @{$self->{$Q}} > 0;
         my %seen;
-        my $total = scalar @{$ego->{$Q}};
+        my $total = scalar @{$self->{$Q}};
         my $switch;
-        for ( my $i = 0; $i < @{$ego->{$Q}}; $i++ ) {
-            my $enQ = $ego->{$Q}[$i];
+        for ( my $i = 0; $i < @{$self->{$Q}}; $i++ ) {
+            my $enQ = $self->{$Q}[$i];
             my ($url,$name) = ( $enQ->url, $enQ->name );
 
 # if we see one again, we've reshuffled as much as is useful
-            $seen{$url}++ 
+            $seen{$url}++
                 and $switch = 1; # progress through to next Q
 
-            return splice(@{$ego->{$Q}},$i,1)
-                unless $ego->_courtesy_call($enQ);
+            return splice(@{$self->{$Q}},$i,1)
+                unless $self->_courtesy_call($enQ);
 
             my $fair_bump = int( log( $total - $i ) / log(1.5) );
 
-            my $move_me_back = splice(@{$ego->{$Q}},$i,1);
-            splice(@{$ego->{$Q}},($i+$fair_bump),0,$move_me_back);
+            my $move_me_back = splice(@{$self->{$Q}},$i,1);
+            splice(@{$self->{$Q}},($i+$fair_bump),0,$move_me_back);
             $i-- unless $switch;
         }
     }
     # we couldn't pick one courteously
 } # end of _choose_courteously()
-#=====================================================================
+#--------------------------
 sub _just_choose {
-    my $ego = shift;
+    my $self = shift;
     print "CHOOSING first up!\n" if $VERBOSITY > 1;
 
     my $enQ;
-    for my $Q ( $ego->_queues ) {
-        next unless ref($ego->{$Q}) eq 'ARRAY';
-        $enQ = shift @{$ego->{$Q}};
+    for my $Q ( $self->_queues ) {
+        next unless ref($self->{$Q}) eq 'ARRAY';
+        $enQ = shift @{$self->{$Q}};
         last;
     }
-    my $tax = $ego->_courtesy_call($enQ);
+    my $tax = $self->_courtesy_call($enQ);
     if ( $VERBOSITY > 4 ) {
         print ' QUEUE: ';
-        print join("-:-", @{$ego->{_courtesy_Queue}}), "\n" 
-            if $ego->{_courtesy_Queue};
+        print join("-:-", @{$self->{_courtesy_Queue}}), "\n"
+            if $self->{_courtesy_Queue};
     }
-    my $sleep = int(rand($ego->sleep_base)) + $tax;
+    my $sleep = int(rand($self->sleep_base)) + $tax;
 
     if ( $VERBOSITY ) {
         printf "COURTESY NAP %d second%s ",
@@ -637,12 +769,12 @@ sub _just_choose {
         $tax, $tax == 1 ?'':'s';
     }
     sleep $sleep; # courtesy to websites but human-ish w/ random
-    $ego->slept($sleep);
+    $self->slept($sleep);
     return $enQ;
 }
-#=====================================================================
+#--------------------------
 sub _courtesy_call {
-    my ($ego,$enQ) = @_;
+    my ($self,$enQ) = @_;
     return 0 unless $enQ;
     my $domain = $enQ->domain;
 
@@ -650,33 +782,33 @@ sub _courtesy_call {
 
 # yes, we have seen it in the last whatever GETs
     my $seen = 0;
-    $seen = scalar grep { $_ eq $domain } 
-        @{$ego->{_courtesy_Queue}};
+    $seen = scalar grep { $_ eq $domain }
+        @{$self->{_courtesy_Queue}};
     $seen = 10 if $seen > 10;
     return $seen;
 }
-#=====================================================================
+#--------------------------
 sub _queues {  # Q9 is purely for trash so it's not returned here
     return wantarray ?
         ( 0 .. 9 ) :
             '0';
 }
-#=====================================================================
+#--------------------------
 sub _snip {
-    my $ego = shift if ref($_[0]);
+    my $self = shift if ref($_[0]);
     my ( @text ) = @_;
     s/^\s+//, s/\s+$//, s/\s+/ /g for @text;
     return wantarray ? @text : shift @text;
 }
-#=====================================================================
+#--------------------------
 # Spyder ENDS
-#=====================================================================
+#--------------------------
 }# WWW::Spyder privacy ends
 
 
-#=====================================================================
+#--------------------------
 package WWW::Spyder::Enqueue;
-#=====================================================================
+#--------------------------
 {
     use Carp;
 #---------------------------------------------------------------------
@@ -686,7 +818,7 @@ use overload( q{""} => '_stringify',
 #  0 -->> URL
 #  1 -->> name, if any, of link URL was got from
 #  2 -->> domain
-#=====================================================================
+#--------------------------
 sub new {
     my ( $caller, $url, $name ) = @_;
     my $class = ref($caller) || $caller;
@@ -702,29 +834,29 @@ sub new {
     my ( $domain ) = $url =~ m,^[^:]+:/+([^/]+),;
     bless [ $url, $name, lc($domain) ], $class;
 }
-#=====================================================================
+#--------------------------
 sub url {
     return $_[0]->[0];
 }
-#=====================================================================
+#--------------------------
 sub name {
     return $_[0]->[1];
 }
-#=====================================================================
+#--------------------------
 sub domain {
     return $_[0]->[2];
 }
-#=====================================================================
+#--------------------------
 sub _stringify {
     return $_[0]->[0];
 }
-#=====================================================================
+#--------------------------
 }#privacy for WWW::Spyder::Enqueue ends
 
 
-#=====================================================================
+#--------------------------
 package WWW::Spyder::Page;
-#=====================================================================
+#--------------------------
 use strict;
 use warnings;
 use Carp;
@@ -732,7 +864,7 @@ use Carp;
 sub new {
     my ( $caller, %arg ) = @_;
     my $class = ref($caller) || $caller;
-    my $ego = bless {}, $class;
+    my $self = bless {}, $class;
 
     while ( my ( $method, $val ) = each %arg ) {
 
@@ -742,45 +874,44 @@ sub new {
 
         if ( ref $val eq 'ARRAY' ) {
             *{"$class::$method"} = sub {
-                my($ego,$arg) = @_;
-                return @{$ego->{$attribute}} unless $arg;
-                push(@{$ego->{$attribute}}, @{$arg});
+                my($self,$arg) = @_;
+                return @{$self->{$attribute}} unless $arg;
+                push(@{$self->{$attribute}}, @{$arg});
             };
         } else {
             *{"$class::$method"} = sub {
-                my($ego,$arg) = @_;
+                my($self,$arg) = @_;
                 # get if already set and deref if needed
-                if ( not $arg and exists $ego->{$attribute} ) {
-                    return ref($ego->{$attribute}) eq 'SCALAR' ?
-                        ${$ego->{$attribute}} : $ego->{$attribute};
+                if ( not $arg and exists $self->{$attribute} ) {
+                    return ref($self->{$attribute}) eq 'SCALAR' ?
+                        ${$self->{$attribute}} : $self->{$attribute};
                  }
-                $ego->{$attribute} = $arg if $arg;  #only set one time!
+                $self->{$attribute} = $arg if $arg;  #only set one time!
             };
         }
-        $ego->$method($val);
+        $self->$method($val);
     }
-    return $ego;
+    return $self;
 }
-#=====================================================================
+#--------------------------
 sub links {
-    my ( $ego ) = @_;
-    return map {$_->url} @{$ego->{_pages_enQs}};
+    my ( $self ) = @_;
+    return map {$_->url} @{$self->{_pages_enQs}};
 }
-#=====================================================================
+#--------------------------
 sub next_link {
-    my ( $ego ) = @_;
-    shift @{$ego->{_pages_enQs}};
+    my ( $self ) = @_;
+    shift @{$self->{_pages_enQs}};
 }
-#=====================================================================
+#--------------------------
 }#privacy for ::Page ends
 
 
-#=====================================================================
+#--------------------------
 package WWW::Spyder::Exclusions;
-#=====================================================================
+#--------------------------
 {
 # THIS PACKAGE IS NOT BEING USED
-#---------------------------------------------------------------------
 my %_domains = qw(
                   ad.doubleclick.net        1
                   ads.clickagents.com       1
@@ -788,71 +919,88 @@ my %_domains = qw(
 my %_names = qw(
 
                 );
-#=====================================================================
+#--------------------------
 sub exclude_domain {
     $_domains{shift}++;
 }
-#=====================================================================
+#--------------------------
 sub excluded {
     my $what = shift;
     exists $_domains{$what} || $_names{$what};
 }
-#=====================================================================
+#--------------------------
 }#privacy ends
 
 
-#=====================================================================
+#--------------------------
 package WWW::Spyder::Seed;
-#=====================================================================
+#--------------------------
 {
-# THIS PACKAGE IS NOT BEING USED
-#---------------------------------------------------------------------
 use URI::Escape;
 use Carp;
-#---------------------------------------------------------------------
-my %engine_url = 
+
+my %engine_url =
     (
      google => 'http://www.google.com/search?q=',
      yahoo =>  1
      );
 
-# should we exclude the search domain at this point? i think so b/c
+# should we exclude the search domain at this point? i think so because
 # otherwise we've introduced dozens of erroneous links and the engine
 # is gonna get hammered over time for it
-#=====================================================================
+#--------------------------
 sub get_seed {
 
-    my $engine = shift || croak "Must provide search engine! " . 
+    my $engine = shift || croak "Must provide search engine! " .
         join(', ', sort keys %engine_url) . "\n";
 
     my $query  = shift || croak "Must provide query terms!\n";
     $query = uri_escape($query);
 
-    croak "$engine is not a valid choice!\n" 
+    croak "$engine is not a valid choice!\n"
         unless exists $engine_url{lc$engine};
 
     return $engine_url{lc$engine} . $query;
 }
-#=====================================================================
-}#privacy for WWW::Spyder::Seed ends
-#=====================================================================
-1;  # eval true
-#=====================================================================
+
+} # Privacy for WWW::Spyder::Seed ends
+
+1;
+
 #  Plain Old D'errrrr
-#=====================================================================
+
 =pod
 
 =head1 NAME
 
 WWW::Spyder - a simple non-persistent web crawler.
 
-=head1 VERSION 0.23
+=head1 VERSION
+
+0.24
 
 =head1 SYNOPSIS
 
 A web spider that returns plain text, HTML, and other information per
 page crawled and can determine what pages to get and parse based on
 supplied terms compared to the text in links as well as page content.
+
+ use WWW::Spyder;
+ # Supply your own LWP::UserAgent-compatible agent.
+ use WWW::Mechanize;
+
+ my $start_url = "http://my-great-domain.com/";
+ my $mech = WWW::Mechanize->new(agent => "PreferredAgent/0.01")
+
+ my $spyder = WWW::Spyder->new(
+                               report_broken_links => 1,
+                               seed                => $start_url,
+                               sleep_base          => 5,
+                               UA                  => $mech
+                );
+ while ( my $page = $spyder->crawl ) {
+     # do something with the page...
+ }
 
 =head1 METHODS
 
@@ -868,7 +1016,10 @@ go_to_seed() turned on, the spyder isn't ready to crawl.
  $spyder = WWW::Spyder->new( %options );
 
 Options include: sleep_base (in seconds), exit_on (hash of methods and
-settings). Examples below.
+settings), report_broken_links, image_checking (verifies the images pointed to
+by <img src=...> tags, disable_cnap (disables the courtesy nap when verbose
+output is enabled), and UA (you can pass in an instantiated LWP::UserAgent
+object via UA, i.e. UA => $ua_obj). Examples below.
 
 =item * $spyder->seed($url)
 
@@ -914,15 +1065,15 @@ performance) discounting the added courtesy naps.
 
 =item * $spyder->UA->...
 
-The LWP::UserAgent. You can reset them, I do believe, by calling
-methods on the UA. Here are the initialized values you might want to
-tweak (see LWP::UserAgent for more information):
+The user agent. It should be an L<LWP::UserAgent> or a well-behaved
+subclass like L<WWW::Mechanize>. Here are the initialized values you
+might want to tweak-
 
     $spyder->UA->timeout(30);
     $spyder->UA->max_size(250_000);
     $spyder->UA->agent('Mozilla/5.0');
 
-Changing the agent name can hurt your spyder b/c some servers won't
+Changing the agent name can hurt your spyder because some servers won't
 return content unless it's requested by a "browser" they recognize.
 
 You should probably add your email with from() as well.
@@ -934,6 +1085,11 @@ You should probably add your email with from() as well.
 They live in $ENV{HOME}/spyderCookie by default but you can set your
 own file if you prefer or want to save different cookie files for
 different spyders.
+
+=item * $spyder->get_broken_links
+
+Returns a reference to a list of broken link URLs if report_broken_links was
+was enabled in the constructor.
 
 =item * $spyder->go_to_seed
 
@@ -1159,7 +1315,7 @@ your system.
 
 You might want to to set $| = 1.
 
-=head1 PRIVATE METHODS 
+=head1 PRIVATE METHODS
 
 =head2 are private but hack away if you're inclined
 
@@ -1244,7 +1400,7 @@ now. I want to add this, and not just by domain, but by page settings.
 
 =head1 UNDOCUMENTED FEATURES
 
-A.k.a. Bugs. Don't be ridiculous! Bugs in B<my code>?! 
+A.k.a. Bugs. Don't be ridiculous! Bugs in B<my code>?!
 
 There is a bug that is causing retrieval of image src tags, I think
 but haven't tracked it down yet, as links. I also think the plain text
@@ -1257,8 +1413,8 @@ self-installing method. This will not always be so.
 See B<Bugs> file for more open and past issues.
 
 Let me know if you find any others. If you find one that is platform
-specific, please send patch code/suggestion b/c I might not have any
-idea how to fix it.
+specific, please send patch code/suggestion because I might not have
+any idea how to fix it.
 
 =head1 WHY C<Spyder?>
 
@@ -1271,16 +1427,6 @@ someday. One's got to dream.
 If you like I<Spyder>, have feedback, wishlist usage, better
 algorithms/implementations for any part of it, please let me know!
 
-=head1 AUTHOR, AUTHOR
-
-Ashley5, ashley@cpan.org. Bob's your monkey's uncle.
-
-=head1 COPYRIGHT
-
-(c)2001-2002 Ashley Pond V. All rights reserved. This program is free
-software; you may redistribute or modify it under the same terms as
-Perl.
-
 =head1 THANKS TO
 
 Most all y'all. Especially Lincoln Stein, Gisle Aas, The Conway,
@@ -1290,5 +1436,36 @@ Raphael Manfredi, Gurusamy Sarathy, and plenty of others.
 
 L<WWW::Robot>, L<LWP::UserAgent>, L<WWW::SimpleRobot>, L<WWW::RobotRules>,
 L<LWP::RobotUA>, and other kith and kin.
+
+=head1 LICENCE AND COPYRIGHT
+
+Copyright (c) 2001-2008, Ashley Pond V C<< <ashley@cpan.org> >>. All
+rights reserved.
+
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself. See L<perlartistic>.
+
+=head1 DISCLAIMER OF WARRANTY
+
+BECAUSE THIS SOFTWARE IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
+FOR THE SOFTWARE, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN
+OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
+PROVIDE THE SOFTWARE "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER
+EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE
+ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH
+YOU. SHOULD THE SOFTWARE PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL
+NECESSARY SERVICING, REPAIR, OR CORRECTION.
+
+IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+REDISTRIBUTE THE SOFTWARE AS PERMITTED BY THE ABOVE LICENCE, BE
+LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL,
+OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE
+THE SOFTWARE (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING
+RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
+FAILURE OF THE SOFTWARE TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
+SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGES.
 
 =cut
